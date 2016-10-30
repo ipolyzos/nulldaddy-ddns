@@ -1,0 +1,4 @@
+package: github.com/ipolyzos/nulldaddy-ddns
+import:
+  - package: github.com/urfave/cli
+    version: v1.18.1
