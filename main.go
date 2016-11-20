@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"net"
 
 	"github.com/urfave/cli"
 	"errors"
@@ -30,7 +31,7 @@ var (
 func main() {
 	app := cli.NewApp()
 	app.Name = "nulldaddy-ddns"
-	app.Version = "0.0.1"
+	app.Version = "0.0.2"
 
 	app.Usage = "Poor man's DDNS!"
 	app.UsageText = "nulldaddy-ddns [global options] (mode)"
@@ -116,19 +117,29 @@ func main() {
 // update domain record with the new IP address
 func updateDomainRecord(gdKey string, gdSecret string, gdDomain string, gdRecordType string, gdRecord string) {
 	//get current external IP address
-	ip, err := discoverExternalIp()
+	nip, err := discoverExternalIp()
 	if err != nil {
 		panic(err.Error())
 	}
 
-	//update record
-	err = updateRecord(ip)
+	cipa, err := net.LookupHost(fmt.Sprintf("%v.%v",gdRecord,gdDomain))
 	if err != nil {
 		panic(err.Error())
 	}
 
-	log.Printf("- record updated.")
+	//assume only one ip address will be returned
+	//TODO: do not assume, work on the results properly
+	if (cipa[0] == nip ){
+		log.Printf("- record is updated.")
+	} else {
+		//update record
+		err = updateRecord(nip)
+		if err != nil {
+			panic(err.Error())
+		}
 
+		log.Printf("- record has been updated.")
+	}
 }
 
 //discover current external IP address
@@ -136,13 +147,19 @@ func discoverExternalIp() (ip string, err error) {
 	ret := &IPAddr{}
 
 	// use ipify.org API to retrieve IP addr
-	url := "https://api.ipify.org?format=json"
+	url := "http://api.ipify.org?format=json"
 
 	var netClient = &http.Client{
 		Timeout: time.Second * 10,
 	}
 
 	response, _ := netClient.Get(url)
+
+	if (response != nil){
+		defer response.Body.Close()
+	} else {
+		return "", errors.New("ipify nil response!")
+	}
 
 	// read body
 	body, err := ioutil.ReadAll(response.Body)
@@ -180,7 +197,7 @@ func updateRecord(ip string) error {
 
 	//instatiate http client
 	var netClient = &http.Client{
-		Timeout:   time.Second * 10,
+		Timeout:   time.Second * 20,
 		Transport: transport,
 	}
 
